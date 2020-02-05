@@ -37,12 +37,8 @@ func main() {
 	a.GET("/", func(req *air.Request, res *air.Response) error {
 		return res.WriteString("You are authorized!")
 	}, authenticator.BasicAuthGas(authenticator.BasicAuthGasConfig{
-		PasswordProvider: func(username string) string {
-			if username == "foo" {
-				return "bar"
-			}
-
-			return ""
+		Validator: func(username, password string) (bool, error) {
+			return username == "foo" && password == "bar", nil
 		},
 	}))
 	a.Serve()

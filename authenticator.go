@@ -3,6 +3,7 @@ package authenticator
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -12,8 +13,9 @@ import (
 
 // BasicAuthGasConfig is a set of configurations for the `BasicAuthGas`.
 type BasicAuthGasConfig struct {
-	PasswordProvider func(username string) string
-	ErrUnauthorized  error
+	Validator       func(username, password string) (bool, error)
+	Realm           string
+	ErrUnauthorized error
 
 	Skippable func(*air.Request, *air.Response) bool
 }
@@ -22,9 +24,9 @@ type BasicAuthGasConfig struct {
 // by using the HTTP Basic Authentication (See RFC 2617, Section 2) based on the
 // bagc. It prevents unauthenticated clients from accessing server resources.
 func BasicAuthGas(bagc BasicAuthGasConfig) air.Gas {
-	if bagc.PasswordProvider == nil {
-		bagc.PasswordProvider = func(_ string) string {
-			return ""
+	if bagc.Validator == nil {
+		bagc.Validator = func(_, _ string) (bool, error) {
+			return false, nil
 		}
 	}
 
@@ -41,8 +43,19 @@ func BasicAuthGas(bagc BasicAuthGasConfig) air.Gas {
 			}
 
 			authHeader := req.Header.Get("Authorization")
-			if !strings.HasPrefix(authHeader, "Basic ") {
+			if len(authHeader) < 6 ||
+				!strings.EqualFold(authHeader[:6], "Basic ") {
 				res.Status = http.StatusUnauthorized
+				if bagc.Realm != "" {
+					res.Header.Set(
+						"WWW-Authenticate",
+						fmt.Sprintf(
+							"Basic realm=%q",
+							bagc.Realm,
+						),
+					)
+				}
+
 				return bagc.ErrUnauthorized
 			}
 
@@ -52,12 +65,38 @@ func BasicAuthGas(bagc BasicAuthGasConfig) air.Gas {
 				authParts[0] == "" ||
 				authParts[1] == "" {
 				res.Status = http.StatusUnauthorized
+				if bagc.Realm != "" {
+					res.Header.Set(
+						"WWW-Authenticate",
+						fmt.Sprintf(
+							"Basic realm=%q",
+							bagc.Realm,
+						),
+					)
+				}
+
 				return bagc.ErrUnauthorized
 			}
 
-			if bagc.PasswordProvider(authParts[0]) != authParts[1] {
+			ok, err := bagc.Validator(authParts[0], authParts[1])
+			if err != nil {
+				return err
+			}
+
+			if !ok {
 				time.Sleep(3 * time.Second)
+
 				res.Status = http.StatusUnauthorized
+				if bagc.Realm != "" {
+					res.Header.Set(
+						"WWW-Authenticate",
+						fmt.Sprintf(
+							"Basic realm=%q",
+							bagc.Realm,
+						),
+					)
+				}
+
 				return bagc.ErrUnauthorized
 			}
 
