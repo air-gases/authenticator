@@ -13,7 +13,7 @@ import (
 
 // BasicAuthGasConfig is a set of configurations for the `BasicAuthGas`.
 type BasicAuthGasConfig struct {
-	Validator       func(username, password string) (bool, error)
+	Validator       func(username, password string, req *air.Request, res *air.Response) (bool, error)
 	Realm           string
 	ErrUnauthorized error
 
@@ -25,7 +25,12 @@ type BasicAuthGasConfig struct {
 // bagc. It prevents unauthenticated clients from accessing server resources.
 func BasicAuthGas(bagc BasicAuthGasConfig) air.Gas {
 	if bagc.Validator == nil {
-		bagc.Validator = func(_, _ string) (bool, error) {
+		bagc.Validator = func(
+			_ string,
+			_ string,
+			_ *air.Request,
+			_ *air.Response,
+		) (bool, error) {
 			return false, nil
 		}
 	}
@@ -78,12 +83,17 @@ func BasicAuthGas(bagc BasicAuthGasConfig) air.Gas {
 				return bagc.ErrUnauthorized
 			}
 
-			ok, err := bagc.Validator(authParts[0], authParts[1])
+			authorized, err := bagc.Validator(
+				authParts[0],
+				authParts[1],
+				req,
+				res,
+			)
 			if err != nil {
 				return err
 			}
 
-			if !ok {
+			if !authorized {
 				time.Sleep(3 * time.Second)
 
 				res.Status = http.StatusUnauthorized
