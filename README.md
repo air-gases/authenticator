@@ -1,6 +1,6 @@
 # Authenticator
 
-[![GoDoc](https://godoc.org/github.com/air-gases/authenticator?status.svg)](https://godoc.org/github.com/air-gases/authenticator)
+[![PkgGoDev](https://pkg.go.dev/badge/github.com/air-gases/authenticator)](https://pkg.go.dev/github.com/air-gases/authenticator)
 
 A useful gas that used to authenticate every request for the web applications
 built using [Air](https://github.com/aofei/air).
